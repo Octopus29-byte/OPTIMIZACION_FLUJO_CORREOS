@@ -1,0 +1,234 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        16,
+        0
+      ],
+      "id": "78099509-310e-4bde-b3ad-3e9b04f58f8d",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "LnE1qro6s1G8tU0F",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=INSTRUCCIÓN DEL SISTEMA:\nEres un asistente académico. Analiza el correo y extrae datos en formato JSON estricto.\n\nReglas de Clasificación:\n1. Si el correo habla de PUBLICIDAD, SPAM o es no habla de ASUNTOS ESCOLARES, establece \"es_importante\": false.\n2. Si el correo habla de TAREAS, EXÁMENES, EVENTOS o CUALQUIER ASUNTO ACADÉMICO, establece \"es_importante\": true.\n\nReglas de Prioridad y Color:\nAplica el \"color_id\" SÓLO si \"es_importante\" es true.\n- Si habla de EXÁMENES o URGENCIAS: \"color_id\": \"11\" (Rojo).\n- Si habla de TAREAS o PROYECTOS: \"color_id\": \"9\" (Azul).\n- Si es un EVENTO, CITA o TRÁMITE: \"color_id\": \"5\" (Amarillo).\n\nRegla de Fecha:\n- Si la fecha mencionada en el correo no especifica el año, ASUME SIEMPRE QUE ES EL AÑO 2025 (o el año futuro más próximo).\n\nResponde ÚNICAMENTE con este JSON (debe contener el boolean y el color):\n{\n  \"es_importante\": boolean,\n  \"titulo\": \"Título corto para el evento\",\n  \"resumen\": \"Resumen muy breve del contenido\",\n  \"fecha_inicio\": \"YYYY-MM-DDTHH:mm:ss\",\n  \"color_id\": \"Número del color asignado\",\n  \"justificacion\": \"Una frase corta sobre la importancia (máximo 15 palabras)\"\n}",
+              "role": "model"
+            },
+            {
+              "content": "={{ $json.snippet }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        208,
+        0
+      ],
+      "id": "049c9cb2-12ca-4730-ad94-a1a491744f6d",
+      "name": "Message a model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "ToRnxjZg5NvnHlUo",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Obtenemos el texto que respondió la IA\nconst respuestaIA = $input.item.json.content.parts[0].text;\n\n// Limpiamos las etiquetas markdown (```json y ```)\nconst jsonLimpio = respuestaIA.replace(/```json/g, '').replace(/```/g, '').trim();\n\n// Convertimos el texto en objeto JSON real\nreturn JSON.parse(jsonLimpio);"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        0
+      ],
+      "id": "ac6ea602-2a61-4e97-8829-6dc3ef227d18",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "7e7457c8-50d3-4b66-9391-37a81b268cef",
+              "leftValue": "={{ $json.es_importante }}",
+              "rightValue": "={{ true }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        768,
+        0
+      ],
+      "id": "c55fe25c-91f9-4061-af8e-042d5a41159a",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "dieco0605@gmail.com",
+          "mode": "list",
+          "cachedResultName": "dieco0605@gmail.com"
+        },
+        "start": "={{ $('Code in JavaScript').item.json.fecha_inicio }}",
+        "end": "={{ DateTime.fromISO($json.fecha_inicio).plus({ hours: 1 }).toISO() }}",
+        "additionalFields": {
+          "color": "={{ $json.color_id }}",
+          "description": "={{ $json.resumen }}{{ $json.justificacion }}",
+          "summary": "={{ $json.titulo }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        1056,
+        -80
+      ],
+      "id": "900099c1-7d25-4337-ba8d-fc8b7cc6d9a4",
+      "name": "Create an event",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "KqgwiHx1pDsakL6k",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "6611604621",
+        "text": "=🚨 **NUEVA EVENTO DETECTADO** \n\n📌 **Título:** {{ $json.titulo }} \n\n📅 **Fecha:** {{ DateTime.fromISO($json.fecha_inicio).setLocale('es').toFormat(\"h:mm a, d 'de' MMMM\") }}\n\n📝 **Resumen:** {{ $json.resumen }} \n\n🧠 **Motivo:** {{ $json.justificacion }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1056,
+        -240
+      ],
+      "id": "1a470f6a-9040-477b-9892-96cef1131edb",
+      "name": "Send a text message",
+      "webhookId": "c05e1f07-b844-4efa-b96e-d3657c2e12f4",
+      "credentials": {
+        "telegramApi": {
+          "id": "HihViMkQe2ySP58h",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create an event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text message": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "71a30213-3487-4c80-a014-22dec63705a2",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "42038ded9bb11fcbfdc5fe8637432c26e690581ce3fdaa545e7250a9620e5805"
+  },
+  "id": "FVVROUPjLIROovtj",
+  "tags": []
+}
