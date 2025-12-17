@@ -24,7 +24,7 @@ El AIDTC se basa en la premisa de que los procesos cognitivos no se limitan al c
 - **Acoplamiento Funcional:** El sistema está diseñado para ser confiable y accesible, cumpliendo con los criterios de un sistema cognitivo extendido.
 
 ## Instalación y Configuración
-1. Importar el archivo `workflow.json` en tu instancia de n8n.
+1. Importar el archivo `Correos.json` en tu instancia de n8n.
 2. Configurar las credenciales para:
    - Gmail API.
    - Google Gemini API.
